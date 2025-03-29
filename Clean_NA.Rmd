@@ -1,0 +1,135 @@
+---
+title: "Create_List"
+output:
+  html_document:
+    theme: united
+    df_print: kable
+  pdf_document: default
+date: 'Compiled: `r format(Sys.Date(), "%B %d, %Y")`'
+---
+
+```{r setup, include = FALSE}
+all_times <- list()  # store the time for each chunk
+knitr::knit_hooks$set(time_it = local({
+  now <- NULL
+  function(before, options) {
+    if (before) {
+      now <<- Sys.time()
+    } else {
+      res <- difftime(Sys.time(), now, units = "secs")
+      all_times[[options$label]] <<- res
+    }
+  }
+}))
+knitr::opts_chunk$set(
+	error = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	tidy = TRUE,
+	tidy.opts = list(width.cutoff = 95),
+	time_it = TRUE
+)
+```
+
+# Setup the Seurat Object
+
+```{r init}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(UCell)
+library(irGSEA)
+library(ggplot2)
+library(stringi)
+library(doMC)
+library(stringr)
+library(biomaRt)
+library(mnormt)
+library(copent)
+library(data.table)
+library(GSVA)
+```
+
+------------------------------------------------------------------------
+
+# load the data
+```{r}
+pbmc <- readRDS("/Users/a/Desktop/本科毕设/毕业论文/血小板immune可视化/immune作图对象/BigMPLTintegratedProjected_initial.immune.finals.rds")
+all.genes <- rownames(pbmc)
+```
+
+```{r}
+# 将数据转换为矩阵（如果已经是矩阵则无需转换）
+data <- as.matrix(pbmc@assays$RNA@data)
+
+# 检查 NA
+if (any(is.na(data))) {
+  cat("数据中存在 NA，数量为:", sum(is.na(data)), "\n")
+  na_positions <- which(is.na(data), arr.ind = TRUE)
+  print("NA 位置（行, 列）：")
+  print(head(na_positions))  # 显示前几个位置
+} else {
+  cat("数据中没有 NA\n")
+}
+
+# 检查 NaN
+if (any(is.nan(data))) {
+  cat("数据中存在 NaN，数量为:", sum(is.nan(data)), "\n")
+  nan_positions <- which(is.nan(data), arr.ind = TRUE)
+  print("NaN 位置（行, 列）：")
+  print(head(nan_positions))
+} else {
+  cat("数据中没有 NaN\n")
+}
+
+# 检查 Inf
+if (any(is.infinite(data))) {
+  cat("数据中存在 Inf，数量为:", sum(is.infinite(data)), "\n")
+  inf_positions <- which(is.infinite(data), arr.ind = TRUE)
+  print("Inf 位置（行, 列）：")
+  print(head(inf_positions))
+} else {
+  cat("数据中没有 Inf\n")
+}
+```
+
+```{r}
+# 将数据转换为矩阵
+data <- as.matrix(pbmc@assays$RNA@data)
+
+# 找出含有 NA 或 NaN 的列索引
+problem_cols <- which(colSums(is.na(data) | is.nan(data)) > 0)
+cat("含有 NA 或 NaN 的细胞数量:", length(problem_cols), "\n")
+```
+
+```{r}
+# 获取细胞名称
+all_cells <- colnames(pbmc)
+# 检查是否与 data 的列名一致
+if (identical(colnames(data), all_cells)) {
+  problem_cells <- all_cells[problem_cols]
+} else {
+  stop("细胞名称不匹配，请检查数据来源")
+}
+```
+
+```{r}
+# 保留不含 NA/NaN 的细胞
+keep_cells <- setdiff(all_cells, problem_cells)
+pbmc_clean <- subset(pbmc, cells = keep_cells)
+
+# 检查清理后的对象
+cat("清理前细胞数:", length(all_cells), "\n")
+cat("清理后细胞数:", ncol(pbmc_clean), "\n")
+```
+
+```{r}
+data_clean <- as.matrix(pbmc_clean@assays$RNA@data)
+cat("清理后 NA 数量:", sum(is.na(data_clean)), "\n")
+cat("清理后 NaN 数量:", sum(is.nan(data_clean)), "\n")
+```
+
+```{r}
+saveRDS(pbmc_clean, "/Users/a/Desktop/本科毕设/毕业论文/血小板immune可视化/immune作图对象/血小板immune_initial.clean.finals.rds")
+```
+
